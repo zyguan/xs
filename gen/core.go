@@ -31,6 +31,29 @@ type Generator interface {
 	Next(ctx context.Context) (interface{}, Generator)
 }
 
+func AsChannel(ctx context.Context, g Generator) <-chan interface{} {
+	ch := make(chan interface{})
+	go func() {
+		defer close(ch)
+		var x interface{}
+		for {
+			if g == nil {
+				return
+			}
+			x, g = g.Next(ctx)
+			if IsStopIteration(x) {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case ch <- x:
+			}
+		}
+	}()
+	return ch
+}
+
 func WrapAllNonNil(xs []interface{}) []Generator {
 	if len(xs) == 0 {
 		return nil
@@ -71,6 +94,10 @@ func Some(val interface{}) Generator {
 		return fn0(g)
 	case func(context.Context) interface{}:
 		return fn1(g)
+	case chan interface{}:
+		return ch(g)
+	case <-chan interface{}:
+		return ch(g)
 	default:
 		return some{val}
 	}
@@ -81,6 +108,22 @@ type some struct{ val interface{} }
 func (g some) Update(ctx context.Context) Generator { return g }
 
 func (g some) Next(ctx context.Context) (interface{}, Generator) { return g.val, nil }
+
+type ch <-chan interface{}
+
+func (g ch) Update(ctx context.Context) Generator { return g }
+
+func (g ch) Next(ctx context.Context) (interface{}, Generator) {
+	select {
+	case <-ctx.Done():
+		return Pending, g
+	case x, ok := <-g:
+		if ok {
+			return x, g
+		}
+		return StopIteration, nil
+	}
+}
 
 type fn0 func() interface{}
 

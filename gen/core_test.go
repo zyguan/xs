@@ -16,17 +16,11 @@ func init() {
 }
 
 func exhaust(g Generator) []interface{} {
-	var (
-		x  interface{}
-		xs []interface{}
-	)
-	for {
-		if g == nil {
-			return xs
-		}
-		x, g = g.Next(context.TODO())
+	var xs []interface{}
+	for x := range AsChannel(context.TODO(), g) {
 		xs = append(xs, x)
 	}
+	return xs
 }
 
 func TestNone(t *testing.T) {
@@ -75,6 +69,18 @@ func TestSome(t *testing.T) {
 		x, g = Some(f).Next(ctx)
 		require.Equal(t, reflect.ValueOf(f), reflect.ValueOf(x))
 		require.Nil(t, g)
+	})
+
+	t.Run("Chan", func(t *testing.T) {
+		ch := make(chan interface{})
+		go func() {
+			ch <- 1
+			ch <- 2
+			ch <- 3
+			close(ch)
+		}()
+		g := Some(ch)
+		require.Equal(t, []interface{}{1, 2, 3}, exhaust(g))
 	})
 
 }
