@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -53,20 +54,21 @@ func TestSome(t *testing.T) {
 
 	t.Run("Func", func(t *testing.T) {
 		var x interface{}
-		g := Some(func() interface{} { return 42 })
-		for i := 0; i < 5; i++ {
-			x, g = g.Next(ctx)
-			require.Equal(t, 42, x)
-			require.NotNil(t, g)
+		for _, g := range []Generator{
+			Some(func() interface{} { return 42 }),
+			Some(func() int { return 42 }),
+			Some(func(_ context.Context) interface{} { return 42 }),
+			Some(func(_ context.Context) int { return 42 }),
+		} {
+			for i := 0; i < 5; i++ {
+				x, g = g.Next(ctx)
+				require.Equal(t, 42, x)
+				require.NotNil(t, g)
+			}
 		}
-		g = Some(func(_ context.Context) interface{} { return 42 })
-		for i := 0; i < 5; i++ {
-			x, g = g.Next(ctx)
-			require.Equal(t, 42, x)
-			require.NotNil(t, g)
-		}
+
 		f := func() { t.Fatal("shouldn't be called") }
-		x, g = Some(f).Next(ctx)
+		x, g := Some(f).Next(ctx)
 		require.Equal(t, reflect.ValueOf(f), reflect.ValueOf(x))
 		require.Nil(t, g)
 	})
@@ -83,6 +85,32 @@ func TestSome(t *testing.T) {
 		require.Equal(t, []interface{}{1, 2, 3}, exhaust(g))
 	})
 
+}
+
+func TestFnX(t *testing.T) {
+	for i, tt := range []struct {
+		ok  bool
+		in  interface{}
+		ret interface{}
+	}{
+		{true, func() int { return 1 }, 1},
+		{true, func(ctx context.Context) int { return 2 }, 2},
+		{false, func() (int, error) { return 0, nil }, nil},
+		{false, func(ctx context.Context) (int, error) { return 0, nil }, nil},
+		{false, func(x int) int { return x }, nil},
+		{false, func(ctx context.Context, x int) int { return x }, nil},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			g := fnX(tt.in)
+			if tt.ok {
+				require.NotNil(t, g)
+				v, _ := g.Next(context.TODO())
+				require.Equal(t, tt.ret, v)
+			} else {
+				require.Nil(t, g)
+			}
+		})
+	}
 }
 
 func TestCons(t *testing.T) {

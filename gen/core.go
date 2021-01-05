@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
+	"reflect"
 	"time"
 )
 
@@ -99,6 +100,9 @@ func Some(val interface{}) Generator {
 	case <-chan interface{}:
 		return ch(g)
 	default:
+		if f := fnX(val); f != nil {
+			return f
+		}
 		return some{val}
 	}
 }
@@ -145,6 +149,35 @@ func (g fn1) Next(ctx context.Context) (interface{}, Generator) {
 		return StopIteration, nil
 	}
 	return Cons(Some(g(ctx)), g).Next(ctx)
+}
+
+var ctxType = reflect.TypeOf((*context.Context)(nil)).Elem()
+
+func fnX(x interface{}) Generator {
+	if x == nil {
+		return nil
+	}
+	v := reflect.ValueOf(x)
+	t := v.Type()
+	if t.Kind() != reflect.Func {
+		return nil
+	} else if t.NumIn() == 0 && t.NumOut() == 1 {
+		return fn0(func() interface{} {
+			r := v.Call(nil)
+			return r[0].Interface()
+		})
+	} else if t.NumIn() == 1 && t.NumOut() == 1 {
+		if !t.In(0).Implements(ctxType) {
+			return nil
+		}
+		return fn1(func(ctx context.Context) interface{} {
+			args := []reflect.Value{reflect.ValueOf(ctx)}
+			r := v.Call(args)
+			return r[0].Interface()
+		})
+	} else {
+		return nil
+	}
 }
 
 func Cons(head Generator, tail Generator) Generator {
