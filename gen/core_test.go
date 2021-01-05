@@ -2,6 +2,7 @@ package gen
 
 import (
 	"context"
+	"math"
 	"math/rand"
 	"reflect"
 	"sort"
@@ -251,6 +252,65 @@ func TestRepeat(t *testing.T) {
 		{"Repeat", Limit(5, Repeat(Seq(1, 2))), []interface{}{1, 2, 1, 2, 1}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.r, exhaust(tt.g))
+		})
+	}
+}
+
+func TestRangeI64(t *testing.T) {
+	i64s := func(ns ...int64) []interface{} {
+		xs := make([]interface{}, len(ns))
+		for i, n := range ns {
+			xs[i] = n
+		}
+		return xs
+	}
+	for i, tt := range []struct {
+		g Generator
+		r []interface{}
+	}{
+		{Limit(5, RangeI64()), i64s(0, 1, 2, 3, 4)},
+		{Limit(5, RangeI64(3)), i64s(3, 4, 5, 6, 7)},
+		{Limit(5, RangeI64(math.MaxInt64)), nil},
+		{RangeI64(1, 1, 0), nil},
+		{RangeI64(1, 2, -1), nil},
+		{RangeI64(1, 6, 2), i64s(1, 3, 5)},
+		{Limit(3, RangeI64(1, 2, 0)), i64s(1, 1, 1)},
+		{RangeI64(2, 1, 1), nil},
+		{RangeI64(6, 1, -2), i64s(6, 4, 2)},
+		{Limit(3, RangeI64(-1, -2, 0)), i64s(-1, -1, -1)},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			require.Equal(t, tt.r, exhaust(tt.g))
+		})
+	}
+}
+
+func TestRangeF64(t *testing.T) {
+	f64s := func(ns ...float64) []interface{} {
+		xs := make([]interface{}, len(ns))
+		for i, n := range ns {
+			xs[i] = n
+		}
+		return xs
+	}
+	for i, tt := range []struct {
+		g Generator
+		r []interface{}
+	}{
+		{Limit(5, RangeF64()), f64s(0, 1, 2, 3, 4)},
+		{Limit(5, RangeF64(3)), f64s(3, 4, 5, 6, 7)},
+		{Limit(5, RangeF64(math.MaxFloat64)), nil},
+		{RangeF64(1, 1, 0), nil},
+		{RangeF64(1, 2, -1), nil},
+		{RangeF64(1, 6, 2), f64s(1, 3, 5)},
+		{Limit(3, RangeF64(1, 2, 0)), f64s(1, 1, 1)},
+		{RangeF64(2, 1, 1), nil},
+		{RangeF64(6, 1, -2), f64s(6, 4, 2)},
+		{Limit(3, RangeF64(-1, -2, 0)), f64s(-1, -1, -1)},
+		{RangeF64(1, 2, .5), f64s(1, 1.5)},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			require.Equal(t, tt.r, exhaust(tt.g))
 		})
 	}

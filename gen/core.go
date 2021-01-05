@@ -3,6 +3,7 @@ package gen
 import (
 	"context"
 	"errors"
+	"math"
 	"math/rand"
 	"reflect"
 	"time"
@@ -418,6 +419,98 @@ func (g repeat) Next(ctx context.Context) (interface{}, Generator) {
 	}
 	x, iter := g.iter.Next(ctx)
 	return x, repeat{g.orig, iter}
+}
+
+func RangeI64(args ...int64) Generator {
+	g := rangeI64{0, math.MaxInt64, 1}
+	if len(args) == 0 {
+	} else if len(args) == 1 {
+		g.start = args[0]
+	} else if len(args) == 2 {
+		g.start, g.end = args[0], args[1]
+	} else if len(args) == 3 {
+		g.start, g.end, g.step = args[0], args[1], args[2]
+	} else {
+		return nil
+	}
+	if !g.hasNext() {
+		return nil
+	}
+	return g
+}
+
+type rangeI64 struct {
+	start int64
+	end   int64
+	step  int64
+}
+
+func (g rangeI64) hasNext() bool {
+	return (g.step >= 0 && g.start < g.end) || (g.step <= 0 && g.start > g.end)
+}
+
+func (g rangeI64) Update(ctx context.Context) Generator {
+	if !g.hasNext() {
+		return nil
+	}
+	return g
+}
+
+func (g rangeI64) Next(ctx context.Context) (interface{}, Generator) {
+	if !g.hasNext() {
+		return StopIteration, nil
+	}
+	ng := rangeI64{g.start + g.step, g.end, g.step}
+	if !ng.hasNext() {
+		return g.start, nil
+	}
+	return g.start, ng
+}
+
+func RangeF64(args ...float64) Generator {
+	g := rangeF64{0, math.MaxFloat64, 1}
+	if len(args) == 0 {
+	} else if len(args) == 1 {
+		g.start = args[0]
+	} else if len(args) == 2 {
+		g.start, g.end = args[0], args[1]
+	} else if len(args) == 3 {
+		g.start, g.end, g.step = args[0], args[1], args[2]
+	} else {
+		return nil
+	}
+	if !g.hasNext() {
+		return nil
+	}
+	return g
+}
+
+type rangeF64 struct {
+	start float64
+	end   float64
+	step  float64
+}
+
+func (g rangeF64) hasNext() bool {
+	return (g.step >= 0 && g.start < g.end) || (g.step <= 0 && g.start > g.end)
+}
+
+func (g rangeF64) Update(ctx context.Context) Generator {
+	if !g.hasNext() {
+		return nil
+	}
+	return g
+}
+
+func (g rangeF64) Next(ctx context.Context) (interface{}, Generator) {
+	if !g.hasNext() {
+		return StopIteration, nil
+	}
+	ng := rangeF64{g.start + g.step, g.end, g.step}
+	if !ng.hasNext() {
+		return g.start, nil
+	}
+	return g.start, ng
 }
 
 type GeneratorWithProb struct {
