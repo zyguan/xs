@@ -1,8 +1,4 @@
-package strs
-
-import "errors"
-
-var ErrWrongType = errors.New("wrong type of element")
+package perms
 
 // Rule -> Alt1 | Alt2 | ...
 type Rule interface {
@@ -14,26 +10,24 @@ type Alt interface {
 	Elems() []Elem
 }
 
-// Elem -> Str | Rule
+// Elem -> Value | Rule
 type Elem interface {
 	IsRule() bool
 	Rule() Rule
-	Value() string
+	Value() interface{}
 }
 
-type S string
+type some struct{ x interface{} }
 
-func (s S) IsRule() bool { return false }
+func (v some) IsRule() bool { return false }
 
-func (s S) Rule() Rule { return nil }
+func (v some) Rule() Rule { return nil }
 
-func (s S) Value() string { return string(s) }
+func (v some) Value() interface{} { return v.x }
 
-type rule []Alt
+type alts []Alt
 
-func (r rule) Alts() []Alt { return r }
-
-func R(alts ...Alt) Rule { return rule(alts) }
+func (r alts) Alts() []Alt { return r }
 
 type ruleElem struct{ r Rule }
 
@@ -41,15 +35,16 @@ func (re ruleElem) IsRule() bool { return true }
 
 func (re ruleElem) Rule() Rule { return re.r }
 
-func (re ruleElem) Value() string { return "" }
-
-func E(r Rule) Elem { return ruleElem{r} }
+func (re ruleElem) Value() interface{} { return nil }
 
 type alt []Elem
 
 func (a alt) Elems() []Elem { return a }
 
-func A(elems ...Elem) Alt { return alt(elems) }
+func R(as ...Alt) Rule     { return alts(as) }
+func A(elems ...Elem) Alt  { return alt(elems) }
+func V(x interface{}) Elem { return some{x} }
+func E(r Rule) Elem        { return ruleElem{r} }
 
 func Seq(xs ...interface{}) Rule {
 	elems := make([]Elem, len(xs))
@@ -57,14 +52,12 @@ func Seq(xs ...interface{}) Rule {
 		switch e := x.(type) {
 		case Elem:
 			elems[i] = e
-		case string:
-			elems[i] = S(e)
 		case Alt:
 			elems[i] = E(R(e))
 		case Rule:
 			elems[i] = E(e)
 		default:
-			panic(ErrWrongType)
+			elems[i] = V(x)
 		}
 	}
 	return R(A(elems...))
@@ -84,10 +77,8 @@ func OneOf(xs ...interface{}) Rule {
 			}
 		case Elem:
 			alts[i] = A(a)
-		case string:
-			alts[i] = A(S(a))
 		default:
-			panic(ErrWrongType)
+			alts[i] = A(V(a))
 		}
 	}
 	return R(alts...)
@@ -97,10 +88,10 @@ func Empty() Alt {
 	return A()
 }
 
-func Walk(root Rule, cb func([]string)) {
+func Walk(root Rule, cb func(...interface{})) {
 	type end int
 
-	state := make([]string, 0, 64)
+	state := make([]interface{}, 0, 64)
 	remaining := []interface{}{end(0), root}
 
 	pop := func() interface{} {
@@ -149,9 +140,7 @@ func Walk(root Rule, cb func([]string)) {
 				state = append(state, v.Value())
 			}
 		case end:
-			ss := make([]string, len(state))
-			copy(ss, state)
-			cb(ss)
+			cb(state...)
 			state = state[:int(v)]
 		}
 	}
