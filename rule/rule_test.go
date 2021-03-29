@@ -1,4 +1,4 @@
-package perms
+package rule
 
 import "fmt"
 

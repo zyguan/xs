@@ -1,4 +1,4 @@
-package perms
+package rule
 
 // Rule -> Alt1 | Alt2 | ...
 type Rule interface {
